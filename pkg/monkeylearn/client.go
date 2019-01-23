@@ -58,6 +58,10 @@ func (c *Client) Classify(model string, docs interface{}) *http.Response {
 	resp, err := c.client.Do(req)
 	if err != nil { log.Panic(err) }
 
+	if resp.StatusCode == 429 {
+		log.Printf("Request got ratelimited. Model: %s", model)
+	}
+
 	// X-Query-Limit-Limit 	Your current query limit
 	// X-Query-Limit-Remaining Number of queries your account has left to use
 	log.Printf(
