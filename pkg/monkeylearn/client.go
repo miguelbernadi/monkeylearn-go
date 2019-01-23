@@ -14,13 +14,35 @@ type DataObject struct {
 	ExternalID *string `json:"external_id"`
 }
 
-type Documents struct {
+type Batch struct {
 	Data []DataObject `json:"data"`
 }
 
-func (d *Documents) Add(document string) *Documents {
-	d.Data = append(d.Data, DataObject{Text: document})
-	return d
+func NewBatch() *Batch {
+	return &Batch{}
+}
+
+func (b *Batch) Add(document string) *Batch {
+	b.Data = append(b.Data, DataObject{Text: document})
+	return b
+}
+
+func SplitInBatches(docs []string, batchSize int) []*Batch {
+	defer startTimer("Split in batches")()
+	batches := []*Batch{}
+	count := 0
+	var tmpbatch *Batch
+	for _, doc := range docs {
+		if count % batchSize == 0 {
+			tmpbatch = NewBatch()
+		}
+		count++
+		tmpbatch.Add(doc)
+		if count % batchSize == 0 || count == len(docs) {
+			batches = append(batches, tmpbatch)
+		}
+	}
+	return batches
 }
 
 type Client struct {
