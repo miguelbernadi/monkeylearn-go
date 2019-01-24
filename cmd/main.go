@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -40,29 +39,28 @@ func main() {
 	fmt.Printf("Number of batches: %d\n", len(batches))
 
 	client := monkeylearn.NewClient(*token)
-	count := 0
 	for resp := range loop(time.Minute / time.Duration(*rpm), batches, client, *classifier) {
-		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil { log.Panic(err) }
-		log.Printf("%#v\n", string(body))
-		count++
+		log.Printf("%#v\n", resp)
 	}
-	log.Printf("Processed batch %d out of %d", count, len(batches))
+	fmt.Printf("Remaining credits: %d / %d\n", client.RequestRemaining, client.RequestLimit)
 }
 
-func loop(rate time.Duration, batches []*monkeylearn.Batch, client *monkeylearn.Client, classifier string) (out chan *http.Response) {
-	out = make(chan *http.Response)
+func loop(rate time.Duration, batches []*monkeylearn.Batch, client *monkeylearn.Client, classifier string) (out chan monkeylearn.ClassifyResult) {
+	out = make(chan monkeylearn.ClassifyResult)
 
 	throttle := time.Tick(rate)
 	var wg sync.WaitGroup
 	for _, batch := range batches {
 		wg.Add(1)
 		<-throttle  // rate limit
-		go func(batch *monkeylearn.Batch) {
-			out <- client.Classify(classifier, batch)
+		go func(batch monkeylearn.Batch) {
+			resp, err := client.Classify(classifier, batch)
+			if err != nil { log.Panic(err) }
+			for _, doc := range resp {
+				out <- doc
+			}
 			wg.Done()
-		}(batch)
+		}(*batch)
 	}
 	go func() {
 		wg.Wait()
