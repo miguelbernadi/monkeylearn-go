@@ -11,24 +11,33 @@ import (
 	"time"
 )
 
+// DataObject is used to serialize Messages to MonkeyLearn classifiers
 type DataObject struct {
 	Text string `json:"text"`
 	ExternalID *string `json:"external_id"`
 }
 
+// Batch represents a group of DataObjects for processing together in
+// a single request
 type Batch struct {
 	Data []DataObject `json:"data"`
 }
 
+// NewBatch returns an empty Batch
 func NewBatch() *Batch {
 	return &Batch{}
 }
 
+// Add adds a document to an existing Batch, updates the referenced
+// document and returns it.
 func (b *Batch) Add(document string) *Batch {
 	b.Data = append(b.Data, DataObject{Text: document})
 	return b
 }
 
+// SplitInBatches takes a list of documents and the expected size of
+// each Batch and returns a list of Batches with batchSize elements
+// each.
 func SplitInBatches(docs []string, batchSize int) []*Batch {
 	defer startTimer("Split in batches")()
 	batches := []*Batch{}
@@ -47,11 +56,15 @@ func SplitInBatches(docs []string, batchSize int) []*Batch {
 	return batches
 }
 
+// Client holds the authentication data to connect to the MonkeyLearn
+// API and is used as gateway to operate with the API
 type Client struct {
 	token string
 	client *http.Client
+	RequestLimit, RequestRemaining int
 }
 
+// NewClient returns a new Client initialized with an authentication token
 func NewClient(token string) *Client {
 	return &Client{token: token, client: &http.Client{} }
 }
@@ -63,6 +76,8 @@ func NewClient(token string) *Client {
 // 	"detail": "Request was throttled. Too many concurrent requests."
 // }
 
+// Classify takes an identifier for a model, a Batch to process and
+// returns the a ClassifyResult list for all documents, or an error.
 func (c *Client) Classify(model string, docs Batch) ([]ClassifyResult, error) {
 	defer startTimer(model)()
 
