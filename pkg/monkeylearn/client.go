@@ -11,85 +11,33 @@ import (
 	"time"
 )
 
-// DataObject is used to serialize Messages to MonkeyLearn classifiers
-type DataObject struct {
-	Text string `json:"text"`
-	ExternalID *string `json:"external_id"`
-}
-
-// Batch represents a group of DataObjects for processing together in
-// a single request
-type Batch struct {
-	Data []DataObject `json:"data"`
-}
-
-// NewBatch returns an empty Batch
-func NewBatch() *Batch {
-	return &Batch{}
-}
-
-// Add adds a document to an existing Batch, updates the referenced
-// document and returns it.
-func (b *Batch) Add(document string) *Batch {
-	b.Data = append(b.Data, DataObject{Text: document})
-	return b
-}
-
-// SplitInBatches takes a list of documents and the expected size of
-// each Batch and returns a list of Batches with batchSize elements
-// each.
-func SplitInBatches(docs []string, batchSize int) []*Batch {
-	defer startTimer("Split in batches")()
-	batches := []*Batch{}
-	count := 0
-	var tmpbatch *Batch
-	for _, doc := range docs {
-		if count % batchSize == 0 {
-			tmpbatch = NewBatch()
-		}
-		count++
-		tmpbatch.Add(doc)
-		if count % batchSize == 0 || count == len(docs) {
-			batches = append(batches, tmpbatch)
-		}
-	}
-	return batches
-}
+const (
+	classifierURL = "https://api.monkeylearn.com/v3/classifiers/%s/classify/"
+	extractorURL = "https://api.monkeylearn.com/v3/extractors/%s/extract/"
+)
 
 // Client holds the authentication data to connect to the MonkeyLearn
 // API and is used as gateway to operate with the API
 type Client struct {
+	http.Client
 	token string
-	client *http.Client
 	RequestLimit, RequestRemaining int
 }
 
 // NewClient returns a new Client initialized with an authentication token
 func NewClient(token string) *Client {
-	return &Client{token: token, client: &http.Client{} }
+	return &Client{token: token}
 }
 
-// Rate limiting
-// {
-// 	"status_code": 429,
-// 	"error_code": "CONCURRENCY_RATE_LIMIT",
-// 	"detail": "Request was throttled. Too many concurrent requests."
-// }
-
-// Classify takes an identifier for a model, a Batch to process and
-// returns the a ClassifyResult list for all documents, or an error.
-func (c *Client) Classify(model string, docs Batch) ([]ClassifyResult, error) {
-	defer startTimer(model)()
-
-	endpoint := fmt.Sprintf(
-		"https://api.monkeylearn.com/v3/classifiers/%s/classify/",
-		model,
+// Process does the appropriate call to the MonkeyLearn API and
+// handles the response
+func (c *Client) Process(model, fmtURL string, data []byte) ([]Result, error) {
+	resp, err := c.Do(
+		c.newRequest(
+			fmt.Sprintf(fmtURL, model),
+			data,
+		),
 	)
-	data, err := json.Marshal(docs)
-	if err != nil { log.Panic(err) }
-
-	req := c.newRequest(endpoint, data)
-	resp, err := c.client.Do(req)
 	if err != nil { log.Panic(err) }
 
 	// We get rate limited. Do something
@@ -105,56 +53,7 @@ func (c *Client) Classify(model string, docs Batch) ([]ClassifyResult, error) {
 	// Only if request is successful
 	c.updateLimits(resp)
 
-	// Deserialize response and deal with it
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil { log.Panic(err) }
-
-	var res []ClassifyResult
-	err = json.Unmarshal(body, &res)
-	if err != nil { log.Panic(err) }
-
-	return res, nil
-}
-
-// Extract takes an identifier for a model, a Batch to process and
-// returns the a ClassifyResult list for all documents, or an error.
-func (c *Client) Extract(model string, docs Batch) ([]ExtractResult, error) {
-	defer startTimer(model)()
-
-	endpoint := fmt.Sprintf(
-		"https://api.monkeylearn.com/v3/extractors/%s/extract/",
-		model,
-	)
-	data, err := json.Marshal(docs)
-	if err != nil { log.Panic(err) }
-
-	req := c.newRequest(endpoint, data)
-	resp, err := c.client.Do(req)
-	if err != nil { log.Panic(err) }
-
-	// We get rate limited. Do something
-	if resp.StatusCode == 429 {
-		return nil, fmt.Errorf("Request got ratelimited. Model: %s", model)
-	}
-
-	// Not succesful? Better error out
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Unsuccessful request: %s", resp.Status)
-	}
-
-	// Only if request is successful
-	c.updateLimits(resp)
-
-	// Deserialize response and deal with it
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil { log.Panic(err) }
-
-	var res []ExtractResult
-	err = json.Unmarshal(body, &res)
+	res, err := deserializeResponse(resp)
 	if err != nil { log.Panic(err) }
 
 	return res, nil
@@ -178,13 +77,23 @@ func (c *Client) updateLimits(response *http.Response) {
 	if err != nil { log.Panic(err) }
 }
 
-// ClassifyResult holds the results of classifying a document
-type ClassifyResult struct {
+// Result holds the results of processing a document be it either an
+// extraction or a classification
+type Result struct {
 	Text string
 	ExternalID int `json:"external_id"`
-	Error bool
+	IsError bool `json:"error"`
 	ErrorDetail string `json:"error_detail"`
 	Classifications []Classification
+	Extractions []Extraction
+}
+
+// Error returns an error if the processing had an error
+func (r Result) Error() error {
+	if r.IsError {
+		return fmt.Errorf(r.ErrorDetail)
+	}
+	return nil
 }
 
 // Classification holds the classification information related to a
@@ -193,15 +102,6 @@ type Classification struct {
 	TagName string `json:"tag_name"`
 	TagID int  `json:"tag_id"`
 	Confidence float64
-}
-
-// ExtractResult holds the results of classifying a document
-type ExtractResult struct {
-	Text string
-	ExternalID int `json:"external_id"`
-	Error bool
-	ErrorDetail string `json:"error_detail"`
-	Extractions []Extraction
 }
 
 // Extraction represents an instance of extracted elements from a
@@ -219,4 +119,17 @@ func startTimer(name string) func() {
 		d := time.Now().Sub(t)
 		log.Println(name, "took", d)
 	}
+}
+
+func deserializeResponse(response *http.Response) ([]Result, error) {
+	defer response.Body.Close()
+
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil { return nil, err }
+
+	var res []Result
+	err = json.Unmarshal(body, &res)
+	if err != nil { return nil, err }
+
+	return res, nil
 }
