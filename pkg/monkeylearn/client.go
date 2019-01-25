@@ -124,6 +124,54 @@ func (c *Client) Classify(model string, docs Batch) ([]ClassifyResult, error) {
 	return res, nil
 }
 
+// Extract takes an identifier for a model, a Batch to process and
+// returns the a ClassifyResult list for all documents, or an error.
+func (c *Client) Extract(model string, docs Batch) ([]ExtractResult, error) {
+	defer startTimer(model)()
+
+	url := "https://api.monkeylearn.com/v3"
+	endpoint := fmt.Sprintf("%s/extractors/%s/extract/", url, model)
+	data, err := json.Marshal(docs)
+	if err != nil { log.Panic(err) }
+
+	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
+	if err != nil { log.Panic(err) }
+
+	req.Header.Add("Authorization", fmt.Sprintf("Token %s", c.token))
+	req.Header.Add("Content-Type", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil { log.Panic(err) }
+
+	// We get rate limited. Do something
+	if resp.StatusCode == 429 {
+		return nil, fmt.Errorf("Request got ratelimited. Model: %s", model)
+	}
+
+	// Not succesful? Better error out
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("Unsuccessful request: %s", resp.Status)
+	}
+
+	// Only if request is successful
+	c.RequestRemaining, err = strconv.Atoi(resp.Header.Get("X-Query-Limit-Remaining"))
+	if err != nil { log.Panic(err) }
+	c. RequestLimit, err = strconv.Atoi(resp.Header.Get("X-Query-Limit-Limit"))
+	if err != nil { log.Panic(err) }
+
+	// Deserialize response and deal with it
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil { log.Panic(err) }
+
+	var res []ExtractResult
+	err = json.Unmarshal(body, &res)
+	if err != nil { log.Panic(err) }
+
+	return res, nil
+}
+
 // ClassifyResult holds the results of classifying a document
 type ClassifyResult struct {
 	Text string
@@ -136,9 +184,27 @@ type ClassifyResult struct {
 // Classification holds the classification information related to a
 // processed document
 type Classification struct {
-	TagName string
+	TagName string `json:"tag_name"`
 	TagID int  `json:"tag_id"`
 	Confidence float64
+}
+
+// ExtractResult holds the results of classifying a document
+type ExtractResult struct {
+	Text string
+	ExternalID int `json:"external_id"`
+	Error bool
+	ErrorDetail string `json:"error_detail"`
+	Extractions []Extraction
+}
+
+// Extraction represents an instance of extracted elements from a
+// document
+type Extraction struct {
+	TagName string `json:"tag_name"`
+	ExtractedText int `json:"extracted_text"`
+	OffsetSpan []int `json:"offset_span"`
+	ParsedValue interface{} `json:"parsed_value"`
 }
 
 func startTimer(name string) func() {
