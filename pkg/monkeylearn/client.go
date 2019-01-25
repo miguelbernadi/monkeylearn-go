@@ -81,17 +81,14 @@ func NewClient(token string) *Client {
 func (c *Client) Classify(model string, docs Batch) ([]ClassifyResult, error) {
 	defer startTimer(model)()
 
-	url := "https://api.monkeylearn.com/v3"
-	endpoint := fmt.Sprintf("%s/classifiers/%s/classify/", url, model)
+	endpoint := fmt.Sprintf(
+		"https://api.monkeylearn.com/v3/classifiers/%s/classify/",
+		model,
+	)
 	data, err := json.Marshal(docs)
 	if err != nil { log.Panic(err) }
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
-	if err != nil { log.Panic(err) }
-
-	req.Header.Add("Authorization", fmt.Sprintf("Token %s", c.token))
-	req.Header.Add("Content-Type", "application/json")
-
+	req := c.newRequest(endpoint, data)
 	resp, err := c.client.Do(req)
 	if err != nil { log.Panic(err) }
 
@@ -106,10 +103,7 @@ func (c *Client) Classify(model string, docs Batch) ([]ClassifyResult, error) {
 	}
 
 	// Only if request is successful
-	c.RequestRemaining, err = strconv.Atoi(resp.Header.Get("X-Query-Limit-Remaining"))
-	if err != nil { log.Panic(err) }
-	c. RequestLimit, err = strconv.Atoi(resp.Header.Get("X-Query-Limit-Limit"))
-	if err != nil { log.Panic(err) }
+	c.updateLimits(resp)
 
 	// Deserialize response and deal with it
 	defer resp.Body.Close()
@@ -129,17 +123,14 @@ func (c *Client) Classify(model string, docs Batch) ([]ClassifyResult, error) {
 func (c *Client) Extract(model string, docs Batch) ([]ExtractResult, error) {
 	defer startTimer(model)()
 
-	url := "https://api.monkeylearn.com/v3"
-	endpoint := fmt.Sprintf("%s/extractors/%s/extract/", url, model)
+	endpoint := fmt.Sprintf(
+		"https://api.monkeylearn.com/v3/extractors/%s/extract/",
+		model,
+	)
 	data, err := json.Marshal(docs)
 	if err != nil { log.Panic(err) }
 
-	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
-	if err != nil { log.Panic(err) }
-
-	req.Header.Add("Authorization", fmt.Sprintf("Token %s", c.token))
-	req.Header.Add("Content-Type", "application/json")
-
+	req := c.newRequest(endpoint, data)
 	resp, err := c.client.Do(req)
 	if err != nil { log.Panic(err) }
 
@@ -154,10 +145,7 @@ func (c *Client) Extract(model string, docs Batch) ([]ExtractResult, error) {
 	}
 
 	// Only if request is successful
-	c.RequestRemaining, err = strconv.Atoi(resp.Header.Get("X-Query-Limit-Remaining"))
-	if err != nil { log.Panic(err) }
-	c. RequestLimit, err = strconv.Atoi(resp.Header.Get("X-Query-Limit-Limit"))
-	if err != nil { log.Panic(err) }
+	c.updateLimits(resp)
 
 	// Deserialize response and deal with it
 	defer resp.Body.Close()
@@ -170,6 +158,24 @@ func (c *Client) Extract(model string, docs Batch) ([]ExtractResult, error) {
 	if err != nil { log.Panic(err) }
 
 	return res, nil
+}
+
+func (c *Client) newRequest(url string, data []byte) *http.Request {
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
+	if err != nil { log.Panic(err) }
+
+	req.Header.Add("Authorization", fmt.Sprintf("Token %s", c.token))
+	req.Header.Add("Content-Type", "application/json")
+
+	return req
+}
+
+func (c *Client) updateLimits(response *http.Response) {
+	var err error
+	c.RequestRemaining, err = strconv.Atoi(response.Header.Get("X-Query-Limit-Remaining"))
+	if err != nil { log.Panic(err) }
+	c. RequestLimit, err = strconv.Atoi(response.Header.Get("X-Query-Limit-Limit"))
+	if err != nil { log.Panic(err) }
 }
 
 // ClassifyResult holds the results of classifying a document
