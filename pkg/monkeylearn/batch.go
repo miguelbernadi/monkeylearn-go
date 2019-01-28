@@ -2,6 +2,7 @@ package monkeylearn
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 )
 
@@ -36,7 +37,7 @@ func (b *Batch) Classify(model string, client *Client) ([]Result, error) {
 	data, err := json.Marshal(*b)
 	if err != nil { log.Panic(err) }
 
-	return client.Process(model, classifierURL, data)
+	return client.Process(fmt.Sprintf(classifierURL, model), data)
 }
 
 // Extract runs the extractor against the specified model
@@ -46,7 +47,7 @@ func (b *Batch) Extract(model string, client *Client) ([]Result, error) {
 	data, err := json.Marshal(*b)
 	if err != nil { log.Panic(err) }
 
-	return client.Process(model, extractorURL, data)
+	return client.Process(fmt.Sprintf(extractorURL, model), data)
 }
 
 // SplitInBatches takes a list of documents and the expected size of

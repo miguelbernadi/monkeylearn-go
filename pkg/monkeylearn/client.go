@@ -31,18 +31,15 @@ func NewClient(token string) *Client {
 
 // Process does the appropriate call to the MonkeyLearn API and
 // handles the response
-func (c *Client) Process(model, fmtURL string, data []byte) ([]Result, error) {
+func (c *Client) Process(endpoint string, data []byte) ([]Result, error) {
 	resp, err := c.Do(
-		c.newRequest(
-			fmt.Sprintf(fmtURL, model),
-			data,
-		),
+		c.newRequest(endpoint, data),
 	)
 	if err != nil { log.Panic(err) }
 
 	// We get rate limited. Do something
 	if resp.StatusCode == 429 {
-		return nil, fmt.Errorf("Request got ratelimited. Model: %s", model)
+		return nil, fmt.Errorf("Request got ratelimited calling %s", endpoint)
 	}
 
 	// Not succesful? Better error out
