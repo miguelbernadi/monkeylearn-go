@@ -31,20 +31,20 @@ func (b *Batch) Add(document DataObject) *Batch {
 }
 
 // Classify runs the classifier against the specified model
-func (b *Batch) Classify(model string, client *Client) ([]Result, error) {
+func (b Batch) Classify(model string, client *Client) ([]Result, error) {
 	defer startTimer(model)()
 
-	data, err := json.Marshal(*b)
+	data, err := json.Marshal(b)
 	if err != nil { log.Panic(err) }
 
 	return client.Process(fmt.Sprintf(classifierURL, model), data)
 }
 
 // Extract runs the extractor against the specified model
-func (b *Batch) Extract(model string, client *Client) ([]Result, error) {
+func (b Batch) Extract(model string, client *Client) ([]Result, error) {
 	defer startTimer(model)()
 
-	data, err := json.Marshal(*b)
+	data, err := json.Marshal(b)
 	if err != nil { log.Panic(err) }
 
 	return client.Process(fmt.Sprintf(extractorURL, model), data)
