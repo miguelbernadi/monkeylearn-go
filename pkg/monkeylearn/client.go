@@ -96,6 +96,34 @@ func (r Result) Error() error {
 	return nil
 }
 
+func MargeResultList(lists ...[]Result) []Result {
+	dict := make(map[int]Result)
+
+	for _, list := range lists {
+		for _, result := range list {
+			index := result.ExternalID
+			val, ok := dict[index]
+			if !ok {
+				dict[index] = result
+			} else {
+				dict[index] = mergeResult(val, result)
+			}
+		}
+	}
+
+	values := make([]Result, 0, len(dict))
+	for _, v := range dict {
+		values = append(values, v)
+	}
+	return values
+}
+
+func mergeResult(a, b Result) Result {
+	a.Classifications = append(a.Classifications, b.Classifications...)
+	a.Extractions = append(a.Extractions, b.Extractions...)
+	return a
+}
+
 // Classification holds the classification information related to a
 // processed document
 type Classification struct {
