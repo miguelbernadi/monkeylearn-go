@@ -24,8 +24,8 @@ func NewBatch() *Batch {
 
 // Add adds a document to an existing Batch, updates the referenced
 // document and returns it.
-func (b *Batch) Add(document string) *Batch {
-	b.Data = append(b.Data, DataObject{Text: document})
+func (b *Batch) Add(document DataObject) *Batch {
+	b.Data = append(b.Data, document)
 	return b
 }
 
@@ -62,7 +62,7 @@ func SplitInBatches(docs []string, batchSize int) []*Batch {
 			tmpbatch = NewBatch()
 		}
 		count++
-		tmpbatch.Add(doc)
+		tmpbatch.Add(DataObject{Text: doc})
 		if count % batchSize == 0 || count == len(docs) {
 			batches = append(batches, tmpbatch)
 		}
