@@ -78,7 +78,7 @@ func (c *Client) updateLimits(response *http.Response) {
 // extraction or a classification
 type Result struct {
 	Text string
-	ExternalID int `json:"external_id"`
+	ExternalID string `json:"external_id"`
 	IsError bool `json:"error"`
 	ErrorDetail string `json:"error_detail"`
 	Classifications []Classification
@@ -94,7 +94,7 @@ func (r Result) Error() error {
 }
 
 func MargeResultList(lists ...[]Result) []Result {
-	dict := make(map[int]Result)
+	dict := make(map[string]Result)
 
 	for _, list := range lists {
 		for _, result := range list {
