@@ -53,7 +53,7 @@ func (b Batch) Extract(model string, client *Client) ([]Result, error) {
 // SplitInBatches takes a list of documents and the expected size of
 // each Batch and returns a list of Batches with batchSize elements
 // each.
-func SplitInBatches(docs []string, batchSize int) []*Batch {
+func SplitInBatches(docs []DataObject, batchSize int) []*Batch {
 	defer startTimer("Split in batches")()
 	batches := []*Batch{}
 	count := 0
@@ -63,7 +63,7 @@ func SplitInBatches(docs []string, batchSize int) []*Batch {
 			tmpbatch = NewBatch()
 		}
 		count++
-		tmpbatch.Add(DataObject{Text: doc})
+		tmpbatch.Add(doc)
 		if count % batchSize == 0 || count == len(docs) {
 			batches = append(batches, tmpbatch)
 		}
