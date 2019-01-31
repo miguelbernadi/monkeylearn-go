@@ -133,7 +133,7 @@ type Classification struct {
 // document
 type Extraction struct {
 	TagName string `json:"tag_name"`
-	ExtractedText int `json:"extracted_text"`
+	ExtractedText string `json:"extracted_text"`
 	OffsetSpan []int `json:"offset_span"`
 	ParsedValue interface{} `json:"parsed_value"`
 }
