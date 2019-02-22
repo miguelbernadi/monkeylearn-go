@@ -1,0 +1,12 @@
+This document lists all the authors that have contributed code or
+documentation to the project and are therefore mentioned in a
+commit. To be listed, they must have submitted their contribution in
+conformance with the rules and License of this project at the time of
+their submission.
+
+The list's format is Name, followed by email address used in the
+submission between '<>'. If more than an address has been used, they
+should be listed one after the other, with one author per
+line. Author's are sorted alphabetically by name.
+
+Miguel Bernabeu Diaz <miguel.bernabeu@devex.com>
