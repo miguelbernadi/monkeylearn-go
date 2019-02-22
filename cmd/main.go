@@ -34,7 +34,11 @@ func main() {
 	docs := load(jsonFile)
 	fmt.Printf("Documents to classify: %d\n", len(docs))
 
-	batches := monkeylearn.SplitInBatches(docs, *batchSize)
+	var dataObjects = []monkeylearn.DataObject{}
+	for _, doc := range docs {
+		dataObjects = append(dataObjects, monkeylearn.DataObject{Text: doc, ExternalID: nil})
+	}
+	batches := monkeylearn.SplitInBatches(dataObjects, *batchSize)
 	fmt.Printf("Batch size: %d\n", *batchSize)
 	fmt.Printf("Number of batches: %d\n", len(batches))
 
