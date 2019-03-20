@@ -143,7 +143,7 @@ type Extraction struct {
 func startTimer(name string) func() {
 	t := time.Now()
 	return func() {
-		d := time.Now().Sub(t)
+		d := time.Since(t)
 		log.Println(name, "took", d)
 	}
 }
