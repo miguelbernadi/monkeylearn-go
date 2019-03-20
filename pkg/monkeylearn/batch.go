@@ -23,10 +23,10 @@ func NewBatch() *Batch {
 	return &Batch{}
 }
 
-// Add adds a document to an existing Batch, updates the referenced
-// document and returns it.
-func (b *Batch) Add(document DataObject) *Batch {
-	b.Data = append(b.Data, document)
+// Add adds a set document to an existing Batch, updates the
+// referenced document and returns it.
+func (b *Batch) Add(document ...DataObject) *Batch {
+	b.Data = append(b.Data, document...)
 	return b
 }
 
