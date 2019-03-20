@@ -93,7 +93,9 @@ func (r Result) Error() error {
 	return nil
 }
 
-func MargeResultList(lists ...[]Result) []Result {
+// MergeResultList returns a slice of Result resulting of merging a
+// series of Result slices
+func MergeResultList(lists ...[]Result) []Result {
 	dict := make(map[string]Result)
 
 	for _, list := range lists {
