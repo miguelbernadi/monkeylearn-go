@@ -42,7 +42,7 @@ func main() {
 	fmt.Printf("Batch size: %d\n", *batchSize)
 	fmt.Printf("Number of batches: %d\n", len(batches))
 
-	client := monkeylearn.NewClient(*token)
+	client := monkeylearn.NewDefaultClient(*token)
 	for resp := range loop(time.Minute / time.Duration(*rpm), batches, client, *classifier) {
 		log.Printf("%#v\n", resp)
 	}

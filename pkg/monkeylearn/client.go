@@ -12,27 +12,35 @@ import (
 )
 
 const (
-	classifierURL = "https://api.monkeylearn.com/v3/classifiers/%s/classify/"
-	extractorURL = "https://api.monkeylearn.com/v3/extractors/%s/extract/"
+	hostname = "https://api.monkeylearn.com"
+	classifierURL = "/v3/classifiers/%s/classify/"
+	extractorURL = "/v3/extractors/%s/extract/"
 )
 
 // Client holds the authentication data to connect to the MonkeyLearn
 // API and is used as gateway to operate with the API
 type Client struct {
-	http.Client
-	token string
+	client *http.Client
+	token, server string
 	RequestLimit, RequestRemaining int
 }
 
-// NewClient returns a new Client initialized with an authentication token
-func NewClient(token string) *Client {
-	return &Client{token: token}
+// NewClient returns a new Client initialized with a custom HTTP
+// client, and API token and a target hostname (e.g. proxying)
+func NewClient(client *http.Client, token, hostname string) *Client {
+	return &Client{client: client, token: token, server: hostname}
+}
+
+// NewDefaultClient returns a new Client initialized with an
+// authentication token usable for the official API
+func NewDefaultClient(token string) *Client {
+	return &Client{client: http.DefaultClient, token: token, server: hostname}
 }
 
 // Process does the appropriate call to the MonkeyLearn API and
 // handles the response
 func (c *Client) Process(endpoint string, data []byte) ([]Result, error) {
-	resp, err := c.Do(
+	resp, err := c.client.Do(
 		c.newRequest(endpoint, data),
 	)
 	if err != nil { log.Panic(err) }
