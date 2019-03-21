@@ -49,7 +49,7 @@ func main() {
 	fmt.Printf("Remaining credits: %d / %d\n", client.RequestRemaining, client.RequestLimit)
 }
 
-func loop(rate time.Duration, batches []*monkeylearn.Batch, client *monkeylearn.Client, classifier string) (out chan monkeylearn.Result) {
+func loop(rate time.Duration, batches []monkeylearn.Batch, client *monkeylearn.Client, classifier string) (out chan monkeylearn.Result) {
 	out = make(chan monkeylearn.Result)
 
 	throttle := time.Tick(rate)
@@ -64,7 +64,7 @@ func loop(rate time.Duration, batches []*monkeylearn.Batch, client *monkeylearn.
 				out <- doc
 			}
 			wg.Done()
-		}(*batch)
+		}(batch)
 	}
 	go func() {
 		wg.Wait()

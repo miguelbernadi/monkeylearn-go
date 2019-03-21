@@ -19,8 +19,8 @@ type Batch struct {
 }
 
 // NewBatch returns an empty Batch
-func NewBatch() *Batch {
-	return &Batch{}
+func NewBatch() Batch {
+	return Batch{}
 }
 
 // Add adds a set document to an existing Batch, updates the
@@ -53,11 +53,11 @@ func (b Batch) Extract(model string, client *Client) ([]Result, error) {
 // SplitInBatches takes a list of documents and the expected size of
 // each Batch and returns a list of Batches with batchSize elements
 // each.
-func SplitInBatches(docs []DataObject, batchSize int) []*Batch {
+func SplitInBatches(docs []DataObject, batchSize int) []Batch {
 	defer startTimer("Split in batches")()
-	batches := []*Batch{}
+	batches := []Batch{}
 	count := 0
-	var tmpbatch *Batch
+	var tmpbatch Batch
 	for _, doc := range docs {
 		if count % batchSize == 0 {
 			tmpbatch = NewBatch()
