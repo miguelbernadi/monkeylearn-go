@@ -47,19 +47,23 @@ func (c *Client) Process(endpoint string, data []byte) ([]Result, error) {
 
 	// We get rate limited. Do something
 	if resp.StatusCode == 429 {
-		return nil, fmt.Errorf("Request got ratelimited calling %s", endpoint)
+		return nil, fmt.Errorf("request got ratelimited calling %s", endpoint)
 	}
 
 	// Not succesful? Better error out
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Unsuccessful request: %s", resp.Status)
+		return nil, fmt.Errorf("unsuccessful request: %s", resp.Status)
 	}
 
 	// Only if request is successful
-	c.updateLimits(resp)
+	if err := c.updateLimits(resp); err != nil {
+		log.Println(fmt.Errorf("error reading request limits: %s", err))
+	}
 
 	res, err := deserializeResponse(resp)
-	if err != nil { log.Panic(err) }
+	if err != nil {
+		log.Println(fmt.Errorf("error deserializing API response: %s", err))
+	}
 
 	return res, nil
 }
@@ -74,12 +78,17 @@ func (c *Client) newRequest(url string, data []byte) *http.Request {
 	return req
 }
 
-func (c *Client) updateLimits(response *http.Response) {
+func (c *Client) updateLimits(response *http.Response) error {
 	var err error
 	c.RequestRemaining, err = strconv.Atoi(response.Header.Get("X-Query-Limit-Remaining"))
-	if err != nil { log.Panic(err) }
+	if err != nil {
+		return fmt.Errorf("error reading API query limit remaining: %s", err)
+	}
 	c. RequestLimit, err = strconv.Atoi(response.Header.Get("X-Query-Limit-Limit"))
-	if err != nil { log.Panic(err) }
+	if err != nil {
+		return fmt.Errorf("error reading API query limit: %s", err)
+	}
+	return nil
 }
 
 // Result holds the results of processing a document be it either an
