@@ -42,14 +42,14 @@ func main() {
 	fmt.Printf("Batch size: %d\n", *batchSize)
 	fmt.Printf("Number of batches: %d\n", len(batches))
 
-	client := monkeylearn.NewClient(*token)
+	client := monkeylearn.NewDefaultClient(*token)
 	for resp := range loop(time.Minute / time.Duration(*rpm), batches, client, *classifier) {
 		log.Printf("%#v\n", resp)
 	}
 	fmt.Printf("Remaining credits: %d / %d\n", client.RequestRemaining, client.RequestLimit)
 }
 
-func loop(rate time.Duration, batches []*monkeylearn.Batch, client *monkeylearn.Client, classifier string) (out chan monkeylearn.Result) {
+func loop(rate time.Duration, batches []monkeylearn.Batch, client *monkeylearn.Client, classifier string) (out chan monkeylearn.Result) {
 	out = make(chan monkeylearn.Result)
 
 	throttle := time.Tick(rate)
@@ -64,7 +64,7 @@ func loop(rate time.Duration, batches []*monkeylearn.Batch, client *monkeylearn.
 				out <- doc
 			}
 			wg.Done()
-		}(*batch)
+		}(batch)
 	}
 	go func() {
 		wg.Wait()

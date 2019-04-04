@@ -12,46 +12,58 @@ import (
 )
 
 const (
-	classifierURL = "https://api.monkeylearn.com/v3/classifiers/%s/classify/"
-	extractorURL = "https://api.monkeylearn.com/v3/extractors/%s/extract/"
+	hostname = "https://api.monkeylearn.com"
+	classifierURL = "/v3/classifiers/%s/classify/"
+	extractorURL = "/v3/extractors/%s/extract/"
 )
 
 // Client holds the authentication data to connect to the MonkeyLearn
 // API and is used as gateway to operate with the API
 type Client struct {
-	http.Client
-	token string
+	client *http.Client
+	token, server string
 	RequestLimit, RequestRemaining int
 }
 
-// NewClient returns a new Client initialized with an authentication token
-func NewClient(token string) *Client {
-	return &Client{token: token}
+// NewClient returns a new Client initialized with a custom HTTP
+// client, and API token and a target hostname (e.g. proxying)
+func NewClient(client *http.Client, token, hostname string) *Client {
+	return &Client{client: client, token: token, server: hostname}
+}
+
+// NewDefaultClient returns a new Client initialized with an
+// authentication token usable for the official API
+func NewDefaultClient(token string) *Client {
+	return &Client{client: http.DefaultClient, token: token, server: hostname}
 }
 
 // Process does the appropriate call to the MonkeyLearn API and
 // handles the response
 func (c *Client) Process(endpoint string, data []byte) ([]Result, error) {
-	resp, err := c.Do(
+	resp, err := c.client.Do(
 		c.newRequest(endpoint, data),
 	)
 	if err != nil { log.Panic(err) }
 
 	// We get rate limited. Do something
 	if resp.StatusCode == 429 {
-		return nil, fmt.Errorf("Request got ratelimited calling %s", endpoint)
+		return nil, fmt.Errorf("request got ratelimited calling %s", endpoint)
 	}
 
 	// Not succesful? Better error out
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Unsuccessful request: %s", resp.Status)
+		return nil, fmt.Errorf("unsuccessful request: %s", resp.Status)
 	}
 
 	// Only if request is successful
-	c.updateLimits(resp)
+	if err := c.updateLimits(resp); err != nil {
+		log.Println(fmt.Errorf("error reading request limits: %s", err))
+	}
 
 	res, err := deserializeResponse(resp)
-	if err != nil { log.Panic(err) }
+	if err != nil {
+		log.Println(fmt.Errorf("error deserializing API response: %s", err))
+	}
 
 	return res, nil
 }
@@ -66,12 +78,17 @@ func (c *Client) newRequest(url string, data []byte) *http.Request {
 	return req
 }
 
-func (c *Client) updateLimits(response *http.Response) {
+func (c *Client) updateLimits(response *http.Response) error {
 	var err error
 	c.RequestRemaining, err = strconv.Atoi(response.Header.Get("X-Query-Limit-Remaining"))
-	if err != nil { log.Panic(err) }
+	if err != nil {
+		return fmt.Errorf("error reading API query limit remaining: %s", err)
+	}
 	c. RequestLimit, err = strconv.Atoi(response.Header.Get("X-Query-Limit-Limit"))
-	if err != nil { log.Panic(err) }
+	if err != nil {
+		return fmt.Errorf("error reading API query limit: %s", err)
+	}
+	return nil
 }
 
 // Result holds the results of processing a document be it either an
