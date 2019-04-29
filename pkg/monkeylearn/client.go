@@ -43,7 +43,7 @@ func (c *Client) Process(endpoint string, data []byte) ([]Result, error) {
 	resp, err := c.client.Do(
 		c.newRequest(endpoint, data),
 	)
-	if err != nil { log.Panic(err) }
+	if err != nil { return nil, err }
 
 	// We get rate limited. Do something
 	if resp.StatusCode == 429 {
