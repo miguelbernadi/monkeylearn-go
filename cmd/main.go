@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/miguelbernadi/monkeylearn-go/pkg/monkeylearn"
@@ -27,59 +26,54 @@ func main() {
 	}
 
 	jsonFile, err := os.Open(*filename)
-	if err != nil { log.Panic(err) }
+	if err != nil {
+		log.Panic(err)
+	}
 	defer jsonFile.Close()
 	fmt.Printf("Reading from %s\n", *filename)
 
 	docs := load(jsonFile)
 	fmt.Printf("Documents to classify: %d\n", len(docs))
 
-	var dataObjects = []monkeylearn.DataObject{}
-	for _, doc := range docs {
-		dataObjects = append(dataObjects, monkeylearn.DataObject{Text: doc, ExternalID: nil})
-	}
-	batches := monkeylearn.SplitInBatches(dataObjects, *batchSize)
-	fmt.Printf("Batch size: %d\n", *batchSize)
-	fmt.Printf("Number of batches: %d\n", len(batches))
+	rate := time.Minute / time.Duration(*rpm)
 
-	client := monkeylearn.NewDefaultClient(*token)
-	for resp := range loop(time.Minute / time.Duration(*rpm), batches, client, *classifier) {
+	// Initialize the API client
+	client := monkeylearn.
+		NewDefaultClient(*token).
+		SetMaxRate(rate).
+		SetClassificationModel(*classifier)
+
+	fmt.Printf("Batch size: %d\n", *batchSize)
+	fmt.Printf("Number of batches: %d\n", len(docs) / *batchSize + 1)
+
+	// Start background request processor
+	go client.RunProcessor()
+
+	// Start processing documents
+	for _, doc := range docs {
+		do := monkeylearn.DataObject{Text: doc, ExternalID: nil}
+		client.ProcessDocuments(do)
+	}
+	client.Batch(*batchSize)
+
+	// We can now read results
+	for resp := range client.Results() {
 		log.Printf("%#v\n", resp)
 	}
 	fmt.Printf("Remaining credits: %d / %d\n", client.RequestRemaining, client.RequestLimit)
 }
 
-func loop(rate time.Duration, batches []monkeylearn.Batch, client *monkeylearn.Client, classifier string) (out chan monkeylearn.Result) {
-	out = make(chan monkeylearn.Result)
-
-	throttle := time.Tick(rate)
-	var wg sync.WaitGroup
-	for _, batch := range batches {
-		wg.Add(1)
-		<-throttle  // rate limit
-		go func(batch monkeylearn.Batch) {
-			resp, err := batch.Classify(classifier, client)
-			if err != nil { log.Panic(err) }
-			for _, doc := range resp {
-				out <- doc
-			}
-			wg.Done()
-		}(batch)
-	}
-	go func() {
-		wg.Wait()
-		close(out)
-	}()
-	return out
-}
-
 func load(stream io.Reader) []string {
 	data, err := ioutil.ReadAll(stream)
-	if err != nil { log.Panic(err) }
+	if err != nil {
+		log.Panic(err)
+	}
 
 	var docs []string
 	err = json.Unmarshal(data, &docs)
-	if err != nil { log.Panic(err) }
+	if err != nil {
+		log.Panic(err)
+	}
 
 	return docs
 }
