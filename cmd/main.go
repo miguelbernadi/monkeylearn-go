@@ -58,14 +58,34 @@ func main() {
 
 	// We can now read results
 	// Print errors and results as they come
-	res, errChan := client.Results()
-	select {
-	case error := <-errChan:
-		// Handle errors
-		log.Println(error)
-	case result := <-res:
-		// Do something with results
-		log.Printf("%#v\n", result)
+	resChan, errChan := client.Results()
+	for {
+		select {
+		case error, ok := <-errChan:
+			if !ok {
+				// Channel was closed, nil it so we
+				// can't keep reading from it
+				errChan = nil
+			}
+
+			// Handle errors
+			log.Println(error)
+
+		case result, ok := <-resChan:
+			if !ok {
+				// Channel was closed, nil it so we
+				// can't keep reading from it
+				resChan = nil
+			}
+
+			// Do something with results
+			log.Printf("%#v\n", result)
+		}
+
+		// Both channels have been closed, let's finish
+		if errChan == nil && resChan == nil {
+			break
+		}
 	}
 
 	fmt.Printf("Remaining credits: %d / %d\n", client.Limits.RequestRemaining, client.Limits.RequestLimit)

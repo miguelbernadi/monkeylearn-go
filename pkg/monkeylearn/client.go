@@ -119,38 +119,46 @@ func (c *Client) Results() (<-chan Result, <-chan error) {
 // Process does the appropriate call to the MonkeyLearn API and
 // handles the response
 func (c *Client) RunProcessor() {
+	var wg sync.WaitGroup
+
 	throttle := time.Tick(c.rate)
 	for req := range c.queue {
+		wg.Add(1)
 		<-throttle // rate limit
 		go func(req *http.Request) {
+			defer wg.Done()
+
 			resp, err := c.executeRequest(req)
 			if err != nil {
 				c.err <- err
-			} else {
-				// Only if request is successful
-				if err := c.Limits.updateLimits(
-					resp.Header.Get("X-Query-Limit-Limit"),
-					resp.Header.Get("X-Query-Limit-Remaining"),
-				); err != nil {
-					c.err <- fmt.Errorf(
-						"error reading request limits: %s",
-						err,
-					)
-				}
-				res, err := deserializeResponse(resp)
-				if err != nil {
-					c.err <- fmt.Errorf(
-						"error deserializing API response: %s",
-						err,
-					)
-				}
+				return
+			}
 
-				for _, result := range res {
-					c.results <- result
-				}
+			// Only if request is successful
+			if err := c.Limits.updateLimits(
+				resp.Header.Get("X-Query-Limit-Limit"),
+				resp.Header.Get("X-Query-Limit-Remaining"),
+			); err != nil {
+				c.err <- fmt.Errorf(
+					"error reading request limits: %s",
+					err,
+				)
+			}
+
+			res, err := deserializeResponse(resp)
+			if err != nil {
+				c.err <- fmt.Errorf(
+					"error deserializing API response: %s",
+					err,
+				)
+			}
+
+			for _, result := range res {
+				c.results <- result
 			}
 		}(req)
 	}
+	wg.Wait()
 	// No one else can write in the channel after us
 	close(c.results)
 	close(c.err)
