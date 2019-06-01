@@ -171,7 +171,9 @@ func (c *Client) queueRequest(endpoint string, data []byte) {
 }
 
 func (c *Client) executeRequest(req *http.Request) (*http.Response, error) {
-	resp, err := c.client.Do(req)
+	resp, err := c.client.Do(
+		c.addAuthorizationHeader(req),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -194,9 +196,13 @@ func (c *Client) newRequest(url string, data []byte) *http.Request {
 	if err != nil {
 		log.Panic(err)
 	}
-
-	req.Header.Add("Authorization", fmt.Sprintf("Token %s", c.token))
 	req.Header.Add("Content-Type", "application/json")
+	return req
+}
 
+// Acts as a middleware, adding the appropriate Authorization header
+// to the request
+func (c *Client) addAuthorizationHeader(req *http.Request) *http.Request {
+	req.Header.Add("Authorization", fmt.Sprintf("Token %s", c.token))
 	return req
 }
