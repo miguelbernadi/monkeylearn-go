@@ -52,6 +52,7 @@ type Client struct {
 	Limits                  *APILimits
 	queue                   chan *http.Request
 	results                 chan Result
+	err                     chan error
 	rate                    time.Duration
 	docs                    []DataObject
 }
@@ -63,6 +64,7 @@ func NewClient(client *http.Client, token, hostname string) *Client {
 	c.Limits = &APILimits{}
 	c.queue = make(chan *http.Request)
 	c.results = make(chan Result)
+	c.err = make(chan error)
 	return c
 }
 
@@ -110,8 +112,8 @@ func (c *Client) Batch(size int) {
 
 // Results returns a channel where we can receive all the results from
 // API calls
-func (c *Client) Results() <-chan Result {
-	return c.results
+func (c *Client) Results() (<-chan Result, <-chan error) {
+	return c.results, c.err
 }
 
 // Process does the appropriate call to the MonkeyLearn API and
@@ -123,27 +125,23 @@ func (c *Client) RunProcessor() {
 		go func(req *http.Request) {
 			resp, err := c.executeRequest(req)
 			if err != nil {
-				log.Println(err)
+				c.err <- err
 			} else {
 				// Only if request is successful
 				if err := c.Limits.updateLimits(
 					resp.Header.Get("X-Query-Limit-Limit"),
 					resp.Header.Get("X-Query-Limit-Remaining"),
 				); err != nil {
-					log.Println(
-						fmt.Errorf(
-							"error reading request limits: %s",
-							err,
-						),
+					c.err <- fmt.Errorf(
+						"error reading request limits: %s",
+						err,
 					)
 				}
 				res, err := deserializeResponse(resp)
 				if err != nil {
-					log.Println(
-						fmt.Errorf(
-							"error deserializing API response: %s",
-							err,
-						),
+					c.err <- fmt.Errorf(
+						"error deserializing API response: %s",
+						err,
 					)
 				}
 
@@ -155,6 +153,7 @@ func (c *Client) RunProcessor() {
 	}
 	// No one else can write in the channel after us
 	close(c.results)
+	close(c.err)
 }
 
 // queueRequest adds a Request for later processing

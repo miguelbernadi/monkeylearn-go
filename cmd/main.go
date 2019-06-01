@@ -57,9 +57,17 @@ func main() {
 	client.Batch(*batchSize)
 
 	// We can now read results
-	for resp := range client.Results() {
-		log.Printf("%#v\n", resp)
+	// Print errors and results as they come
+	res, errChan := client.Results()
+	select {
+	case error := <-errChan:
+		// Handle errors
+		log.Println(error)
+	case result := <-res:
+		// Do something with results
+		log.Printf("%#v\n", result)
 	}
+
 	fmt.Printf("Remaining credits: %d / %d\n", client.Limits.RequestRemaining, client.Limits.RequestLimit)
 }
 
