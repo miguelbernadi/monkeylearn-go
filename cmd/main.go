@@ -60,7 +60,7 @@ func main() {
 	for resp := range client.Results() {
 		log.Printf("%#v\n", resp)
 	}
-	fmt.Printf("Remaining credits: %d / %d\n", client.RequestRemaining, client.RequestLimit)
+	fmt.Printf("Remaining credits: %d / %d\n", client.Limits.RequestRemaining, client.Limits.RequestLimit)
 }
 
 func load(stream io.Reader) []string {

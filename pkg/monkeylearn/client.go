@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -16,22 +17,50 @@ const (
 	extractorURL  = "/v3/extractors/%s/extract/"
 )
 
+type APILimits struct {
+	RequestLimit, RequestRemaining int
+	sync.Mutex
+}
+
+func (a *APILimits) updateLimits(limit, remains string) error {
+	requests, err := strconv.Atoi(limit)
+	if err != nil {
+		return fmt.Errorf("error reading API query limit: %s", err)
+	}
+
+	remaining, err := strconv.Atoi(remains)
+	if err != nil {
+		return fmt.Errorf("error reading API query limit remaining: %s", err)
+	}
+
+	a.update(requests, remaining)
+	return nil
+}
+
+func (a *APILimits) update(limit, remaining int) {
+	a.Lock()
+	a.RequestLimit = limit
+	a.RequestRemaining = remaining
+	a.Unlock()
+}
+
 // Client holds the authentication data to connect to the MonkeyLearn
 // API and is used as gateway to operate with the API
 type Client struct {
-	client                         *http.Client
-	token, server, endpoint        string
-	RequestLimit, RequestRemaining int
-	queue                          chan *http.Request
-	results                        chan Result
-	rate                           time.Duration
-	docs                           []DataObject
+	client                  *http.Client
+	token, server, endpoint string
+	Limits                  *APILimits
+	queue                   chan *http.Request
+	results                 chan Result
+	rate                    time.Duration
+	docs                    []DataObject
 }
 
 // NewClient returns a new Client initialized with a custom HTTP
 // client, and API token and a target hostname (e.g. proxying)
 func NewClient(client *http.Client, token, hostname string) *Client {
 	c := &Client{client: client, token: token, server: hostname}
+	c.Limits = &APILimits{}
 	c.queue = make(chan *http.Request)
 	c.results = make(chan Result)
 	return c
@@ -97,12 +126,25 @@ func (c *Client) RunProcessor() {
 				log.Println(err)
 			} else {
 				// Only if request is successful
-				if err := c.updateLimits(resp); err != nil {
-					log.Println(fmt.Errorf("error reading request limits: %s", err))
+				if err := c.Limits.updateLimits(
+					resp.Header.Get("X-Query-Limit-Limit"),
+					resp.Header.Get("X-Query-Limit-Remaining"),
+				); err != nil {
+					log.Println(
+						fmt.Errorf(
+							"error reading request limits: %s",
+							err,
+						),
+					)
 				}
 				res, err := deserializeResponse(resp)
 				if err != nil {
-					log.Println(fmt.Errorf("error deserializing API response: %s", err))
+					log.Println(
+						fmt.Errorf(
+							"error deserializing API response: %s",
+							err,
+						),
+					)
 				}
 
 				for _, result := range res {
@@ -150,17 +192,4 @@ func (c *Client) newRequest(url string, data []byte) *http.Request {
 	req.Header.Add("Content-Type", "application/json")
 
 	return req
-}
-
-func (c *Client) updateLimits(response *http.Response) error {
-	var err error
-	c.RequestRemaining, err = strconv.Atoi(response.Header.Get("X-Query-Limit-Remaining"))
-	if err != nil {
-		return fmt.Errorf("error reading API query limit remaining: %s", err)
-	}
-	c.RequestLimit, err = strconv.Atoi(response.Header.Get("X-Query-Limit-Limit"))
-	if err != nil {
-		return fmt.Errorf("error reading API query limit: %s", err)
-	}
-	return nil
 }
